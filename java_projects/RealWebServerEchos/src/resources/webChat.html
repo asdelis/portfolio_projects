@@ -1,0 +1,48 @@
+<html>
+
+<head>
+    <title> Web Chat </title>
+    <link rel = "stylesheet" href = "webChatStyle.css"/>
+</head>
+
+<body>
+     
+    <b> Web Chat </b>
+
+    <div>
+        <label for="userName"> Your Name </label>
+        <input type="text" id="userName" value="andrew">
+    </div>
+
+    <div>
+        <label for="roomName"> Room Name </label>
+        <input type="text" id="roomName" value="room">
+    </div>
+
+    <div>
+        <label for="messageInput"> Write Message </label>
+        <input type="text" id="messageInput">
+        <button id="sendMessageBtn"> Send </button>
+    </div>
+
+    <div> 
+        <label for="messageInput"> Leave Meeting </label>
+        <button id="leaveBtn"> Leave </button>
+    </div>
+
+    <div class="left"> 
+        <b>Name</b>
+        <div id = "nameBox"></div>
+    </div>
+
+    <div class="right"> 
+        <b> Messages </b> 
+        <div id = "messageBox"></div>
+        </div>
+    </div>
+
+    <script type = "text/javascript" src = "webChat.js"></script>
+
+</body>
+
+</html>
