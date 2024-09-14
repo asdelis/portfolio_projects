@@ -1,0 +1,30 @@
+Case Description and Questions:
+
+Fluent.io
+
+Fluent.io is a popular language learning app that offers free and paid subscription plans. The app uses AI to adaptively scale language lessons to suit an individual learner’s exact needs, with technology for training pronunciation that is unmatched in the industry. The company’s mission is to make this sort of cutting edge language education accessible to everyone, while also generating sufficient revenue to sustain and grow the platform.
+
+Fluent.io has a “freemium” subscription model with two current plans:
+
+Free: Ad-supported with limited features
+Plus: $6.99/month with ad-free experience
+All customers start on the free plan when they register for the app and have the option to upgrade to paid, which is known as a conversion. Both plans, free and paid, offer in-app purchases for additional services.
+
+As a member of the pricing strategy team at fluent.io, your job is to optimize the pricing structure for the Plus plan to maximize revenue. An analysis of previous price increases demonstrated that the demand for Plus is relatively inelastic1, suggesting that users might be willing to pay more for additional features and benefits.
+
+Consequently, your team has discussed three new pricing tiers to replace Plus:
+
+Basic: $7.99/month with ad-free experience
+Pro: $9.99/month with ad-free experience, enhanced pronunciation training with AI, offline lessons, and additional features
+Premium: $16.99/month with all Pro features plus personalized coaching and exclusive content
+All tiers include in-app purchase options for additional services.
+
+To evaluate the impact of these new pricing tiers on user conversion and revenue, you propose an A/B/C/D test with the following groups:
+
+Treatment Group A (control): existing Plus plan
+Treatment Group B: Basic
+Treatment Group C: Pro
+Treatment Group D: Premium
+New customers, as well as existing free plan members, will be presented randomly with the option of enrolling in one of these new paid tiers.2
+
+Increasing prices could reduce conversion rates. Rather than testing for changes in conversions directly, however, you decide to use average revenue per user (ARPU) as the outcome metric for the experiment. After all, it combines conversion rate and customer spending. The hope is that the more expensive tiers will increase revenue without impacting conversion. Your primary goal in running the experiment, then, is to determine which pricing tier, if any, leads to a significant improvement in ARPU.

@@ -1,0 +1,143 @@
+---
+title: "ANDREW_DELIS_fluent.io_case"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+execute:
+  warning: false
+  message: false
+output: html_document
+date: "2024-09-07"
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+# Packages
+library(tidyverse)
+
+hd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/fluent_historical.csv" )
+dd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/fluent_historical_dictionary.csv" )
+
+```
+
+### A simple simulation to show that ARPU is impacted by differences in conversion rate.
+```{r }
+
+set.seed( 123 )
+
+c1 <- rbinom( n = 1000, size = 1, prob = 0.2 ) # generate number of conversions
+c2 <- rbinom( n = 1000, size = 1, prob = 0.23 )
+
+s <- rnorm( n = 1000, mean = 10, sd = 2 ) # add random dollar values to those conversion numbers
+
+mean( c1 * s )
+mean( c2 * s )
+
+```
+
+If only the probability of conversion changes when calculating the ARPU, the ARPU increases. In my second calculation I made the probability of conversion 0.5 so that it is obvious that more customers converting will increase the number average revenue per user.
+
+### Estimate ARPU and SDRPU using the 2022 historical data.
+```{r }
+
+# monthly per unit metrics
+mpum <- hd |> 
+  mutate( mo = month( hd$date ),              # extract month
+          yr = year( hd$date ) ) |>           # extract year
+  filter( yr == 2022 ) |>                     # filter down to 2022
+  group_by( customer_id, mo ) |>              # aggregate by customer and month
+  summarize( revenue = sum( paid ) ) |>       # calculate total monthly revenue per customer
+  group_by( mo ) |>                           # aggregate by month
+  summarize( arpu = mean( revenue ),          # calculate overall monthly ARPU (average revenue per unit) 
+             sdrpu = sd( revenue),            # and SDRPU (standard deviation of revenue per unit)
+             n = n_distinct( customer_id ) )
+
+mpum
+
+```
+
+### What is the total sample size required for the A/B/C/D test? 
+```{r }
+
+# Assuming an MEI of $2 (approximately a 10% increase over the historical ARPU) 
+# And SDRPU of $24?
+
+# use a t-test to find the sample size for each group
+power.t.test( delta = 2,
+              sd = 24, 
+              sig.level = 0.05 / 3, # Bonferroni corrected alpha
+              power = 0.8,
+              alternative = "one.sided" )
+
+# find the total sample size using the size from each group
+sample_size <- 2541 * 4
+
+```
+
+The total number of users that would need to be sampled in order to do this A/B/C/D test is 10,164 This is assuming a couple of things. 
+
+The big assumption is that we want power to remain at the standard 0.8. Since we are just comparing the current subscriptions against one another, there is no need to adjust this. There is no new product in this scenario, so manipulating the power would not aid us in detecting innovation like it did when we were running our A/B tests. Errors in this instance will just mistakenly tell us which current product is a better revenue generator. This is not good, but seems to be unavoidable. 
+
+### What was the average number of new subscribers (free and paid) per day in 2022?
+```{r }
+
+newsub <- hd |>
+  filter( type == "subscription" ) |>        # filter down to subscribers
+  arrange( customer_id, date) |>             # arrange by customer and date
+  slice( 1, .by = customer_id ) |>           # pick out each customer's first appearance in the data
+  count( date ) |>                           # count the number of new rows (customers)
+  summarize( mean( n ) |> ceiling() ) |>     # calculate mean new subscribers and round up
+  pull()                                     # return as a vector
+  
+newsub
+
+```
+
+### What is the required duration in days for the A/B/C/D test of ARPU?
+```{r }
+
+sample_size / newsub
+
+```
+
+Based on the sample size we calculated in step 3 and the average number of new daily subscribers, it should take about 122 days to get the data for this A/B/C/D test of ARPU.
+
+### Would it be faster to test conversions?
+```{r }
+
+power.prop.test( p1 = 0.2,
+                 p2 = 0.3,
+                 sig.level = 0.05 / 3,
+                 power = 0.8,
+                 alternative = "one.sided" )
+
+
+# conversions sample size
+css <- 330 * 4
+
+# number of days of testing if we chose conversions as a metric
+css / newsub
+
+# difference in sample sizes
+sample_size - ( css / newsub )
+
+```
+
+Assuming a conversion MEI of 0.1, and that we are doing an A/B/C/D test of conversions, the required sample size for this test of conversions would be 1320. This is a difference of 10148 unique users. It would take significantly less time to get the data required to do this test compared to the ARPU test.
+
+### Experiment proposal
+
+"Fluent.io is a popular language learning app that offers free and paid subscription plans." Based on historical data, the pricing team has a hunch that users may "be willing to pay more for additional features and benefits." In order to test this hunch we propose running an A/B/C/D test to determine each subscription option's effect on average revenue per user (ARPU).
+
+The null hypothesis is that there is no difference between how these subscriptions affect ARPU. The alternative hypothesis would be that there is a difference. Group A will be the control group, and groups B, C, and D will be the tests.
+
+For the test we will continue to store data in the same format as the historical data for 122 days. This duration was calculated assuming an alpha of 0.05, a power of 0.8, an MEI of 2 dollars, and a standard deviation in ARPU of 24 dollars, and a continued daily average of 83 new subscribers. 
+
+After the users are randomly split into their groups, we will run our initial analysis.
+
+If 122 days is too long a time to wait before we will need this insight, we can always change the test metric from revenue to conversions to get feedback in significantly less time. 
