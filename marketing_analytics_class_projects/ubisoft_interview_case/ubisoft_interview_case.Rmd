@@ -1,0 +1,139 @@
+---
+title: "ANDREW_DELIS_ubisoft_interview_case"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+execute:
+  warning: false
+  message: false
+output: html_document
+date: "2024-08-30"
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+
+hd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/ubisoft_historical.csv" )
+dd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/ubisoft_historical_dictionary.csv" )
+ 
+```
+
+### What is the unit of analysis for the proposed A/B test?
+
+The unit of analysis for this experiment is the customers that visit the page. This is the smallest unit that we will be able to make a conclusion about at the end of our analysis because they are the ones receiving the new page treatment.
+
+### The baseline conversion rate for the "For Honor" game in the historical data?
+```{r }
+
+# "bcr" = baseline conversion rate
+bcr <- sum( hd$Conversions ) / sum( hd$Visitors ) 
+
+bcr
+
+```
+
+### The sample size requried for each group in order for the test to detect a MEI of 1% in conversions, assuming an alpha of 0.05 and a power of 0.8 in a one-tailed (directional) test.
+```{r }
+
+# "tcr" = target converstion rate
+tcr <- bcr + 0.01
+
+power.prop.test( p1 = bcr,
+                 p2 = tcr,
+                 sig.level = 0.05,
+                 power = 0.8,
+                 alternative = "one.sided" )
+
+```
+We will need 6,266 people for each group (control and treatement), so we will need 12,532 people total.
+
+###  How long will the test need to run, given the study parameters from the previous question—MEI, alpha and power, and the visitor counts in the historical data?
+```{r }
+
+# average number of visitors per day
+av <- mean( hd$Visitors )
+
+12532 / av
+
+```
+
+Assuming that the first three months of the year are a pretty good representation of the next three months, it should take just under 24 days to get enough traffic to complete the test. 
+
+The assumption that the traffic to the website in the next three months will not be drastically lower may actually be a pretty good one based on the data we have. A campaign was only active for a couple days in the first three months, so if there are less this next quarter it won't drastically elongate the number of days needed to complete the experiment. Additionally, if there are way more campaign days we would expect that to bring more traffic which would allow us to get our data sooner.
+
+One other assumption that should probably be addressed is the assumption that the new website is actually an improvement over the control website. We don't have data on it yet, but we are assuming that the treatment website will not be so bad that it hurts future traffic. If it is worse enough to affect traffic, it will take us longer to get the data for the treatment group.
+
+### Recalculated sample size and study duration using different settings for alpha and power due to false negatives being more detrimental to a company than false positives in A/B testing.
+```{r }
+
+# changed the alpha and power to 0.2 and 0.9 respectively
+power.prop.test( p1 = bcr,
+                 p2 = tcr,
+                 sig.level = 0.2,
+                 power = 0.9,
+                 alternative = "one.sided" )
+
+(4568 * 2)
+(4568 * 2) / av
+
+```
+I wanted to increase power to 0.9 to decrease the potential for false negatives by 10%, and lower the total sample size so that the company doesn't have to spend a whole three weeks getting the experiment data. Increasing alpha to 0.2 felt appropriate since we used 0.8 for power last time, and in combination with a 0.9 power the time to collect the required sample size decreased by almost a whole week. (Total sample size went from 12,532 to 9,136)
+
+### Simulated visitor level data for the test, based on numbers from the historical data, and given the MEI and the test duration calculated previously.
+```{r }
+
+# variables
+# the test converion rate takes the 1% MEI into account
+test_duration_days <- 17.2
+total_visitors <- test_duration_days * av
+
+# initialize a data frame that has the same number of rows as total visitors
+visitor_data <- data.frame( id = 1:total_visitors )
+
+# randomly assign each customer to either the control or treatment group in column "group"
+# create two columns that will help us simulate conversions based on the conversions rates above
+# "conversion_prob" assigns the conversion rates to their appropriate groups
+# "conversion" uses the given binom() method to simulate whether the customer converted
+visitor_data <- visitor_data |>
+  mutate( group = sample( c( "control", "test" ), 
+                          n(), 
+                          prob = c( 0.5, 0.5 ), 
+                          replace = TRUE ),
+          conversion_prob = ifelse( group == "control", bcr, tcr ),
+          conversion = rbinom( n(), 1, conversion_prob ) ) |>
+  select(-conversion_prob)
+
+head( visitor_data )
+
+```
+
+```{r }
+
+# validate that the simulation worked
+visitor_data |>
+  group_by( group ) |>
+  summarize( rate = mean( conversion ) )
+
+# test whether the sample size is big enough using the table() function and prop.test()
+tbl <- table( visitor_data$group, visitor_data$conversion )
+prop.test( tbl, alternative = "greater" )
+
+```
+
+The rate of the simulated control and test groups are 0.046 and 0.57 respectively and the target for both of these was 0.049 and 0.059. Additionally, the test we ran said that this is statistically significant. Based on the simulation, the sample size is big enough for us to see the MEI of a 1% increase.  
+
+### A brief proposal for the experiment and analysis plan
+
+To determine whether the new Buy Now page for "For Honor" is capable of the conversion MEI of 1%, we will run a test on our customers that places them into two groups. One will simply be named "control" and the other "treatment." The control group will get the original Buy Now page layout, and the treatment group will see the revamped page.
+
+Our null hypothesis is that there is no difference between the two pages in terms of conversion rate. Our alternative hypothesis is that the conversion rate is 1% higher for the new page than the old.
+
+The page the customer will see will be randomly assigned with equal probability of seeing each page (50/50). Based on the number of average customers Ubisoft gets per day, this test should take about 17.2 days to complete (9136 total customers). This is assuming a bias toward innovation and a desire to decrease the number of type two errors (results that suggest there is no difference in conversion rate between the two pages when there actually is). Baked into this assumption is an increased power (0.9) and increased alpha (0.2).
+
+After the test is complete we will test to see whether our results were significant.

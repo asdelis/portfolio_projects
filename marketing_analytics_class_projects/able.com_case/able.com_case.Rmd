@@ -1,0 +1,146 @@
+---
+title: "ANDREW_DELIS_able.com_case"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+execute:
+  warning: false
+  message: false
+output: html_document
+date: "2024-08-09"
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+toy_sales_data <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/toy_sales_data.csv" )
+toy_sales_PO <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/toy_sales_PO.csv" )
+
+```
+
+### What is the true ATE of having a sale?
+
+```{r }
+
+trueATE <- mean( toy_sales_PO$y1 - toy_sales_PO$y0 )
+
+trueATE
+
+```
+
+### What is the estimated ATE of having a sale using the observed data, toy_sales.csv?
+
+```{r }
+
+treatment_data <- toy_sales_data[toy_sales_data$is_on_sale == 1,]
+avg_treatment_sales <- mean( treatment_data$weekly_amount_sold )
+
+control_data <- toy_sales_data[toy_sales_data$is_on_sale == 0,]
+avg_control_sales <- mean( control_data$weekly_amount_sold )
+
+estimatedATE <- avg_treatment_sales - avg_control_sales
+
+estimatedATE
+
+```
+
+### What is the bias involved in using the observed data to estimate ATE?
+
+```{r }
+
+bias <- estimatedATE - trueATE
+
+bias
+
+```
+
+### A balance table using the observed data (toy_sales.csv) that shows how company size varies by treatment status. Comment on the exchangeability of the groups
+
+```{r }
+
+bt_data <- toy_sales_data |>
+  group_by( is_on_sale ) |>
+  summarize( avg_co_size = mean( avg_week_sales ) )
+
+# Shows that the average company size varies per group 
+# This is evidence that these groups are not perfectly exchangable. 
+bt_data$avg_co_size[2] - bt_data$avg_co_size[1]
+
+bt_data
+
+```
+
+### Some analysis to show how company size is affecting the relationship between weekly_amount_sold and is_on_sale, and a statistical model to adjust for the confounding.  
+
+```{r }
+
+lm( weekly_amount_sold ~ is_on_sale + avg_week_sales, data = toy_sales_data ) |>
+  summary()
+
+```
+
+#### Adjusted ATE
+
+```{r }
+
+# Create a new column in a new data frame
+adjusted_data <- mutate( toy_sales_data, adjusted_sales = weekly_amount_sold - ( avg_week_sales * 3.1902 ) )
+
+# Find the ATE using adjusted sales column
+treatment_data_2 <- adjusted_data[adjusted_data$is_on_sale == 1,]
+avg_treatment_sales_2 <- mean( treatment_data_2$adjusted_sales )
+
+control_data_2 <- adjusted_data[adjusted_data$is_on_sale == 0,]
+avg_control_sales_2 <- mean( control_data_2$adjusted_sales )
+
+estimatedATE_2 <- avg_treatment_sales_2 - avg_control_sales_2
+
+estimatedATE_2
+
+```
+
+#### How the adjustment is working.
+
+Based on the linear regression, sales increases 3.1902 for every unit increase in company size (average weekly sales). To adjust for that I created a new column called "adjusted_sales" to the observed data that removed that effect by multiplying the average weekly sales by the linear regression coefficient given and then subtracted that from the total sales per unit. Then I found the ATE again.
+
+### What is the true ATE of a sales campaign conditional on weeks to Christmas? 
+
+```{r }
+
+CATE_data <- toy_sales_PO |>
+  group_by( weeks_to_xmas ) |>
+  summarize( CATE = mean( y1 - y0 ) )
+
+CATE_data
+
+```
+
+### A statistical model used to estimate the true ATE of a sales campaign conditional on weeks to Christmas.
+
+```{r }
+
+# Run regression model
+lm( weekly_amount_sold ~ is_on_sale * weeks_to_xmas, data = toy_sales_data ) |>
+  summary()
+
+# Create a new column in a new data frame
+interaction_data <- mutate( toy_sales_data, adjusted_sales = weekly_amount_sold - ( weeks_to_xmas * 6.942 ) )
+
+# Find the ATE using adjusted sales column 
+
+treatment_data_3 <- interaction_data[interaction_data$is_on_sale == 1,]
+avg_treatment_sales_3 <- mean( treatment_data_3$adjusted_sales )
+
+control_data_3 <- interaction_data[interaction_data$is_on_sale == 0,]
+avg_control_sales_3 <- mean( control_data_3$adjusted_sales )
+
+estimatedATE_3 <- avg_treatment_sales_3 - avg_control_sales_3
+
+estimatedATE_3
+```

@@ -1,0 +1,11 @@
+Case Description and Questions:
+
+Able.com
+
+You work a data scientist at Able.com, an online marketplace used by small and medium-sized businesses to advertise and sell their products. In the last year Able.com has begun offering a subscription service—Abilify—to its vendors. The service provides access to a variety of data products related to business-specific analytics and recommendations. Part of your job at Able is to support the Abilify team by developing products.
+
+In a recent meeting your boss mentioned a a topic that came up in the monthly focus group of selected Able.com vendors: they would like better information on prospective sales campaigns (where they announce a temporary price drop to customers). In particular, your boss says, they want guidance on when a sale for one of their products is a good idea. That is, at what point do the gains from selling more compensate for the loss of selling cheaper?
+
+This conversation gives you an idea for a data product based on an answer to a causal question: what is the impact of lowering prices on units sold? You know that a predictive model could be misleading in this situation because, for example, higher prices could be associated with higher sales. During the holidays stores are able to charge more and sell more. A machine learning model might provide the mistaken advice, based on a correlation, that higher prices lead to higher sales. You realize that the key question for this project relates to the unobserved counterfactual: how many additional units would a business have sold if it had lowered prices compared to not doing anything? This defines the causal impact of a sales campaign.
+
+(This scenario is borrowed from Casual Inference in Python by Matheus Facure)

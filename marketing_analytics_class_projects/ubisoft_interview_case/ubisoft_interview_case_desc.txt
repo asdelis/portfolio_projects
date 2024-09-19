@@ -1,0 +1,50 @@
+Case Description and Questions
+
+Ubisoft Interview
+While searching for a job after completing her MSBA degree, Maya Lee happened to notice a job advertisement for a data scientist position in the experimentation division at Ubisoft Entertainment. Researching the company she learned that Ubisoft is a French video game publisher known for several popular franchises including Assassin’s Creed, Just Dance, Far Cry, and For Honor. While Ubisoft has offices on six continents, this particular job would be at the company’s Paris headquarters. Maya had always wanted to live and work in Europe, so she applied for the job and got an initial screening interview with a recruiter. That conversation was about her educational background and interests. She must have done okay because the recruiter has just emailed her for a followup technical interview:
+
+Subject: Invitation to Participate in Technical Assessment for A/B Testing Role
+
+Dear Maya,
+
+Congratulations on progressing to the next stage of our hiring process for the Data Scientist position at Ubisoft Entertainment! We are excited to learn more about your skills in experimentation and data analysis.
+
+As part of our evaluation, we would like you to complete a technical assessment focused on designing an A/B test. The scenario for this assessment is based on a critical project we are currently undertaking: optimizing the Buy Now page for the For Honor game.
+
+Scenario
+
+The existing page requires excessive scrolling, which we hypothesize is deterring customers from completing purchases.
+
+*** image of current page ***
+
+This page requires users to select the preferred version of the game from the five displayed on the screen and then scroll down to select the console type. Finally, they must click the “Place Your Order” button before being taken to the checkout on the Ubisoft store.
+
+In the revised version, the Order Now step has been moved to the top of the page, in the left column alongside the edition and console selection.
+
+*** image of revised page ***
+
+This redesign aims to simplify the buying process by reducing the need for scrolling and minimizing clicks. The goal is to increase customer conversions.
+
+A/B Test Details
+
+Conversion Definition: For this test, a conversion is defined as a completed purchase.
+Data Collection: All customer interactions that lead to a conversion will be tracked, including page visits, clicks, and time spent on the For Honor page.
+Traffic Segmentation: All customer traffic to the For Honor page is available for the test.
+Minimum Effect of Interest (MEI): The MEI is defined as a 1 percentage point increase in conversions, on an absolute basis.
+Deliverable
+
+Please outline your approach to designing this A/B test, focusing on the following aspects:
+
+Experiment Design: How will customers be assigned be assigned to test and control groups? What is the required sample size? How long should the test run?
+Data Analysis Plan: What statistical methods would you use to analyze whether the new page produces an increase in conversions?
+Submit your written response and any supporting code within the next week. We are looking for thorough, well-reasoned approaches that demonstrate your understanding of A/B testing principles and your ability to apply them to real-world scenarios.
+
+A file with historical data is attached to this email, along with a data dictionary, to help you design the study.
+
+If you have any questions or need further clarification, please do not hesitate to reach out.
+
+Best regards,
+
+Ubisoft Recruitment Team
+
+Maya is excited to get started on the project.
