@@ -1,0 +1,33 @@
+Case Description and Questions
+
+Fluent.io Revisited
+
+You work on the pricing strategy team at Fluent.io, an AI-powered language learning app. Currently the company has a “freemium” subscription model with two plans:
+
+Free: Ad-supported with limited features
+Plus: $6.99/month with ad-free experience
+Based on the idea that demand for subscriptions is relatively inelastic, you proposed and designed an experiment to test whether new pricing tiers would increase average revenue per user (ARPU) compared to the existing paid Plus plan. That experiment—an A/B/C/D test—had the following groups:
+
+Treatment Group A (control): the Plus plan
+Treatment Group B: Basic, $7.99/month, with ad-free experience
+Treatment Group C: Pro, $9.99/month, with ad-free experience, enhanced pronunciation training with AI, offline lessons, and additional features
+Treatment group D: Premium, $16.99/month, with all Pro features plus personalized coaching and exclusive content
+You wrote a proposal for the experiment, which included an estimate for the sample size and duration for the experiment. Unfortunately, the VP for Pricing at Fluent.io nixed the proposal—too time consuming. “Please come up with a faster alternative,” she replied to your proposal email. “We need to move faster.”
+
+Back to the drawing board. After some thought and research you have come up with what you think will be a faster, more iterative approach: group sequential testing. Rather than testing all the alternatives at once for a fixed duration (and relatively lengthy) A/B/n test you propose doing three sequential tests using both efficacy and futility bounds. Each test will have five stages, which will provide multiple opportunities for early stopping. This has the potential to accelerate results.
+
+Here are the parameters you have decided on for the experiment:
+
+Five stages for each group sequential trial (with stopping possibilities at information of .2, .4, .6, .8 and 1).
+
+The first test will be A/B, followed by A/C and A/D.
+
+The alpha and beta spending functions will be O’Brien-Fleming.
+
+The minimum effect of interest (MEI) for spending is a $2 increase in ARPU.
+
+SDRPU is /$24.
+
+For sample sizing, alpha and power will be set at conventional thresholds of .05 and .8, respectively.
+
+Customers will be split randomly into each test variant with probability of .5.
