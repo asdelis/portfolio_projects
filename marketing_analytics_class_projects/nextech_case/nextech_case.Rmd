@@ -1,0 +1,266 @@
+---
+title: "ANDREW_DELIS_nextech_case"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+execute:
+  warning: false
+  message: false
+output: html_document
+date: "2024-09-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library( tidyverse )
+library( MatchIt )
+library( marginaleffects )
+
+```
+
+### Set up
+```{r }
+
+d <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/management_training.csv" )
+dd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/management_training_data_dictionary.csv" )
+
+```
+
+### Used a linear model to estimated the ATE, or the difference in mean engagement scores for treatment vs. control groups
+```{r }
+
+lm( engagement_score ~ intervention, data = d )
+
+```
+
+The ATE of the two groups, according to this simple model, is ~0.43.
+
+### Estimated ATE with multiple regression, adjusting for possible confounders 
+```{r }
+
+# adjust for possible confounders
+lm( engagement_score ~ intervention + 
+      tenure + 
+      n_of_reports +
+      gender + 
+      factor( role ) +
+      department_score +
+      department_size +
+      last_engagement_score, data = d ) |>
+  summary()
+
+```
+The adjusted ATE after controlling for confounders is ~0.27.
+
+If the intervention was the only thing that was influencing the engagement, we would expect that to be the only covariate with a statistically significant effect size. However, we definitely did not see that. Department, tenure, gender, and role all influence engagement significantly while the effect size of the intervention variable decreased. Additionally, the intercept is statistically significant which suggests that there is bias in the data.
+
+What's interesting to me is that the variable that I thought for sure would have been confounding the engagement score the most is the variable last_engagement_score, which is described in the data dictionary as "the average engagement score for that manager in the previous iteration of the engagement survey." I expected managers with higher previous engagement scores to be the ones who are most likely to decide to take the training despite not being selected for it. Conversely, I expected managers with lower engagement scores to be the ones that decided not to attend despite being selected for the intervention. I take this to mean that I misinterpreted what engagement is measuring. It does not seem to be measuring someones natural charisma or drive to succeed, but it seems to measure a managers actual interaction with people.
+
+### Used coarsened exact matching (CEM) to create synthetic treatment and control groups for estimating the treatment effect
+```{r }
+
+cem <- matchit( formula = intervention ~ 
+                  tenure + 
+                  n_of_reports + 
+                  gender + 
+                  last_engagement_score + 
+                  factor( role ) + 
+                  department_score + 
+                  department_size, 
+                  data = d,
+                  method = "cem" )
+
+# create balance tables to compare treatment and control group before and after CEM.
+summary( cem )
+
+# estimate the treatment effect (ATM) by turning the matchit object into 
+# a data frame, and by using a linear model with that data frame to find the ATM
+m_cem <- match.data( cem )
+lm( engagement_score ~ intervention + 
+      tenure + 
+      n_of_reports +
+      gender + 
+      factor( role ) +
+      department_score +
+      department_size +
+      last_engagement_score, data = m_cem ) |>
+  summary()
+
+```
+After using CEM the effect size (ATM) has decreased from ~0.43 to ~0.23 -- a lot closer to the ATE we found after controlling for confounders. Notably, it is lower than either of the ATE's we calculated previously. It is unclear if this difference is meaningful though. When using CEM we lose the ability to generalize any finding due to fact that data is eliminated in order to make the matching work. It is valuable to know that we are getting closer to a true effect size, but we will need a better matching method in order to figure out the real effect size.
+
+### Used full matching to create weighted synthetic treatment and control groups
+```{r }
+
+full <- matchit( formula = intervention ~ 
+                  tenure + 
+                  n_of_reports + 
+                  gender + 
+                  last_engagement_score + 
+                  factor( role ) + 
+                  department_score + 
+                  department_size, 
+                  data = d,
+                  method = "quick" )
+
+# create balance tables to compare treatment and control group before and after CEM.
+summary( full )
+
+# estimate the treatment effect (ATM) by turning the matchit object into 
+# a data frame, and by using a linear model with that data frame to find the ATM
+m_full <- match.data( full )
+lm( engagement_score ~ 
+      intervention + 
+      tenure + 
+      n_of_reports +
+      gender + 
+      factor( role ) +
+      department_score +
+      department_size +
+      last_engagement_score, 
+    weights = weights,
+    data = m_full ) |>
+  summary()
+
+
+```
+The ATE using linear regression is ~0.27 using the full matching. This shows that the true ATE is pretty close to the numbers we have seen in previous analysis. The mean difference has gone up per covariate however, so the matching is not as exact as the CEM matching method.
+
+```{r }
+
+# estimate ATE using G-computation
+model_full <- lm( engagement_score ~ intervention * 
+                    ( tenure + 
+                      n_of_reports + 
+                      gender + 
+                      factor( role ) + 
+                      last_engagement_score + 
+                      department_score + 
+                      department_size ),
+             weights = weights,
+             data = m_full )
+
+avg_comparisons( model_full,
+                 variables = "intervention", 
+                 vcov = ~subclass,
+                 wts = "weights" )
+
+```
+Using G-computation, we get an even better estimate that is fairly close to what we have got previously. The actual number is 0.269.
+
+### Used inverse propensity score weighting in regression to estimate the ATE of the training program.
+```{r }
+
+# estimate the propensity scores
+ps_model <- glm( intervention ~  
+                   tenure + 
+                   n_of_reports + 
+                   gender + 
+                   factor( role ) + 
+                   last_engagement_score + 
+                   department_score + 
+                   department_size,
+            family = "binomial",
+            data = d )
+
+# predict probabilities using response as the type
+d$ps <- predict( ps_model, type = "response")
+
+# calculate IPW
+d <- d |>
+  mutate( ipw = ifelse( intervention == 1, 1/ps, 1/(1 - ps) ) )
+
+# check overlap in propensity scores 
+d |>
+  mutate( ps = ps ) |>
+  summarise( min( ps ), max( ps ), .by = intervention)
+
+# check overlap in propensity scores with a plot
+ggplot( d, aes(ps) ) +
+  geom_histogram() +
+  facet_wrap( ~ intervention, 
+              ncol = 1 )
+
+# estimate the treatment effect 
+lm_ipw <- lm( engagement_score ~ 
+                intervention + 
+                tenure + 
+                n_of_reports +
+                gender + 
+                factor( role ) +
+                department_score +
+                department_size +
+                last_engagement_score ,
+              weights = ipw,
+              data = d ) |> 
+  summary()
+lm_ipw$coefficients[ 2 ]
+
+# estimate the treatment effect after trimming the data
+lm_ipw2 <- lm( engagement_score ~ 
+                intervention + 
+                tenure + 
+                n_of_reports +
+                gender + 
+                factor( role ) +
+                department_score +
+                department_size +
+                last_engagement_score ,
+              weights = ipw,
+              data = filter( d, ps > 0.2 & ps < 0.8) ) |>
+  summary()
+lm_ipw2$coefficients[ 2 ]
+
+```
+The overlap in propensity scores was pretty similar from what I could tell. They don't overlap perfectly, but trimming did not seem like it would help much with fixing the issue. However, some trimming did help get the effect size closer to a number that seemed more accurate. Trimming the data dropped the effect size from 0.2742317 to 0.2686205.
+
+### Calculated a 95% confidence interval for the ATE using a bootstrap
+```{r }
+
+set.seed(123)
+
+# initialize the vector that will hold the simulated treatment effects
+boot_dist <- 1:1000
+
+# run the simulation using a loop
+for( i in 1:1000 ) {
+  
+  # sample df w/ replacement
+  boot <- sample_frac( tbl = d, size = 1, replace = T )
+  
+  lm_ipw3 <- lm( engagement_score ~ 
+                intervention + 
+                tenure + 
+                n_of_reports +
+                gender + 
+                factor( role ) +
+                department_score +
+                department_size +
+                last_engagement_score ,
+              weights = ipw,
+              data = filter( boot, ps > 0.2 & ps < 0.8) )
+  
+  # calculate treatment effect and store in boot_dist
+  boot_dist[ i ] <- lm_ipw3$coefficients[ 2 ]
+  
+}
+
+# the average of the bootstrap should resemble the observed effect
+mean( boot_dist ) |> round( 4 )
+
+# calculate upper and lower bounds
+quantile( boot_dist, probs = c( 0.025, 0.975 ) ) |> round( 4 )
+
+```
+According to this bootstrap, we can be 95% confident that the true effect size of this observed is between 0.2278 and 0.2970.
+
+### Brief summary of the case and the analytic objective, along with the challenge posed by confounding:
+Nextech is trying to test whether a training they developed will successfully give highly competent individuals that have just been promoted to a mangerial role the skills they need to succeed in that role. They have already collected the data, but have realized that there are confounding variables in it. This is due to individuals going to these trainings when they were not randomly selected for it, and other individuals skipping the trainings despite being selected for it.
+
+When running a multiple regression analysis it became clear that department, tenure, gender, and role could all possibly be confounding variables due to their outsized effect on treatment. When controlling for these variables, we get a more realistic effect size as well.
+
+In order to negate the influence of counfounders, I did not only control for these confounding variables, but used different methods of matching to try to identify the true effect size. The inverse propensity weighting and the full matching method suggested that the true effect size is just below 0.27. Additionally, I used a bootstrap sample to find a confidence interval for the effect size that utilized IPW matching and found that we can be 95% confident that the true effect size of this observed is between 0.2329 and 0.3012.
