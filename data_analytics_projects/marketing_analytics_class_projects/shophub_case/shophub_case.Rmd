@@ -1,0 +1,218 @@
+---
+
+title: "ANDREW_DELIS_nextech_case"
+author: "Andrew Delis"
+date: "2024-10-04"
+output:
+ html_document:
+   toc: true
+
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library( caret )
+library( grf )
+library( dplyr )
+
+od <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/observed_email_data.csv" )
+ed <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/experimental_email_data.csv" )
+dd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/email_data_dictionary.csv" )
+
+# "The only difference between the observed and the experimental data is that 
+# in the latter customers were randomized into the treatment condition, whereas 
+# in the former they were not."
+
+```
+
+### The ATE in the experimental data (point estimate)
+```{r }
+
+lm( next_mnth_pv ~ mkt_email, data = ed )
+
+```
+Based on just this model the ATE of the marketing email treatment is $1382.
+
+### The ATE in the experimental data (95% confidence interval)
+```{r }
+
+set.seed(123)
+
+# initialize the vector that will hold the simulated treatment effects
+boot_dist <- 1:1000
+
+# run the simulation using a loop
+for( i in 1:1000 ) {
+  
+  # sample ed w/ replacement
+  boot <- sample_frac( tbl = ed, size = 1, replace = T )
+  
+  lm_ <- lm( next_mnth_pv ~ mkt_email, data = boot )
+  
+  # calculate treatment effect and store in boot_dist
+  boot_dist[ i ] <- lm_$coefficients[ 2 ]
+  
+}
+
+# the average of the bootstrap should resemble the observed effect
+mean( boot_dist ) |> round( 4 )
+
+# calculate upper and lower bounds
+quantile( boot_dist, probs = c( 0.025, 0.975 ) ) |> round( 4 )
+
+```
+
+Doing a bootstrap we find that the 95% confidence interval for this ATE is 1328.48 to 1440.07 dollars.
+
+### Using the observational data to estimate the ATE using multiple regression
+```{r }
+
+lm( next_mnth_pv ~ ., data = od ) |>
+  summary()
+
+```
+
+Based on the multiple regression model the ATE is 1522.70 dollars.
+
+### Creating an S learner with linear regression as the base learner
+```{r }
+
+# fit the model
+s <- lm( next_mnth_pv ~ ., data = od )
+
+# predict individual outcomes for the two groups using the single model
+next_mnth_pv1 <- predict( s, newdata = od |> mutate( mkt_email = 1 ) )
+next_mnth_pv0 <- predict( s, newdata = od |> mutate( mkt_email = 0 ) )
+
+# calculate CATE for each individual
+cate <- next_mnth_pv1 - next_mnth_pv0
+cate[1:5]
+
+# calculate ATE
+ate <- mean ( cate )
+ate
+
+```
+
+The estimated CATE for each individual in this linear S learner model is a constant. This is due to the simple linear regression model we used as the base of the S learner. We did not include any interaction terms in the model, so the model will only produce main effects sizes. The the model will always predict the same ATE of 1522.703 because the treatment size is not allowed to vary in a model with only main effects.
+
+### Repeating the previous analysis, this time using random forest as the base learner
+```{r }
+
+set.seed(123)
+
+# define the cross-validation method
+train_control <- trainControl( method = "cv", number = 5 )
+
+# fit the model
+rf_mod <- train( next_mnth_pv ~ ., 
+                 data = od,
+                 method = "ranger",
+                 trControl = train_control )
+
+# random forest CATE
+rf_cate <- predict( rf_mod, newdata = od |> mutate( mkt_email = 1 ) ) - 
+        predict( rf_mod, newdata = od |> mutate( mkt_email = 0 ) )
+
+# find the ATE using the CATE for individuals
+mean( predict( rf_mod, newdata = od |> mutate( mkt_email = 1 ) ) - 
+        predict( rf_mod, newdata = od |> mutate( mkt_email = 0 ) ) )
+
+```
+
+We can use the CATE estimates for each individual from this model to identify "persuadables," or people who are most affected by our marketing email. The interpretation is straightforward: the higher the individual CATE, the bigger the predicted effective of the marketing email treatment for that individual. You could just simply take a list of all these consumers and sort in descending order to identify the best people to target if you wanted to maximize predicted spend.
+
+What is the estimated ATE is much lower with this model though. It dropped from 1522 dollars to 1187 dollars. This is not more accurate based on previous analysis, but it is maybe notable that the ATE is not overestimated like the s learner or the multple regression model.
+
+### Using the observational data to create a T learner, with random forest as the base learner
+```{r }
+
+set.seed(123)
+
+# subset the data
+od1 <- filter( od, mkt_email == 1 ) |> select( -mkt_email )
+od0 <- filter( od, mkt_email == 0 ) |> select( -mkt_email )
+
+# fit the models
+rf_mod1 <- train( next_mnth_pv ~ ., 
+                 data = od1,
+                 method = "ranger",
+                 trControl = train_control )
+
+rf_mod0 <- train( next_mnth_pv ~ ., 
+                 data = od0,
+                 method = "ranger",
+                 trControl = train_control )
+
+# predict outcomes for entire data set using the new models
+rf_mod1_next_mnth_pv <- predict( rf_mod1, newdata = od )
+rf_mod0_next_mnth_pv <- predict( rf_mod0, newdata = od )
+
+
+
+# CATE
+rf_cate_t <- rf_mod1_next_mnth_pv - rf_mod0_next_mnth_pv
+rf_cate_t[1:10]
+
+# find the ATE using the CATE for individuals
+mean( rf_cate_t )
+
+```
+
+The estimated ATE for the random forest t learner model is 1535.608. This is much higher than the s learner forest model, but very close to the multiple linear regression model and more in line which our expectations of a true ATE based on previous analysis.
+
+### Estimating CATE and ATE with the observational data using a causal forest model
+```{r }
+
+# run the causal forest
+cf <- causal_forest( X = select( od, -next_mnth_pv, -mkt_email ),
+                     Y = od$next_mnth_pv,
+                     W = od$mkt_email,
+                     seed = 123 )
+cf
+
+# get CATE for first ten obersvations
+predict( cf )$predictions[ 1:10 ]
+
+# get ATE
+average_treatment_effect( cf, target.sample = "all")
+
+```
+
+Using the causal forest we get an ATE of 1519.48 dollars. This is very close to the other ATEs we have gotten. 
+
+### Brief overview of the case as a whole
+Our goal for this case was to "create a model for estimating heterogeneous treatment effects — specifically, the conditional average treatment effect (CATE) of promotional emails on customers’ future purchase volume, calculated at the individual level." In other words, we are trying to find the individuals who will have the strongest reaction to our marketing email campaign.
+
+Review of ATEs per model:
+  multiple regression - 1522.70
+  s learner (linear regression) - 1522.70
+  s learner (random forest) - 1187.033
+  t learner (random forest) - 1535.608
+  causal forest - 1519.48
+
+Very first, we found that the experimental data produced an ATE of 1382. None of our models get very close to this number.
+
+```{r }
+
+ed_ate <- 1382
+
+# multiple regression / s learner (linear regression)
+1522.70 - ed_ate
+
+# s learner (random forest)
+1187.033 - ed_ate
+
+# t learner (random forest)
+1535.608 - ed_ate
+
+# causal forest
+1519.48 - ed_ate
+
+```
+Notably the causal forest model does get closest to the experimental data. 
+
+Due to this fact, and due to the fact that the causal forest model (and the causal trees that make them up) is the only model that is specifically optimizing around treatment effect, I think the best model to use when analyzing indidvidual CATEs is the causal forest model. I think that adopting any of the models will help ShopHub's current situation, but the causal forest model seems to be the most neatly matched model to this specific situation.
+
