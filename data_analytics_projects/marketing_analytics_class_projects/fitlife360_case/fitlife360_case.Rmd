@@ -1,0 +1,151 @@
+---
+
+title: "ANDREW_DELIS_fitlife360_case"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+execute:
+  warning: false
+  message: false
+output: html_document
+date: "2024-10-21"
+
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+# download some packages
+devtools::install_github( "ebenmichael/augsynth" )
+devtools::install_github( "facebookincubator/Geolift" )
+
+# load packages
+library(devtools)
+library(tidyverse)
+library(fixest)
+library(CausalImpact)
+library(GeoLift)
+library(zoo)
+library(tidyr)
+
+pd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/offline_marketing_360.csv" )
+dd <- read.csv( "https://raw.githubusercontent.com/jefftwebb/data/main/offline_marketing_360_data_dictionary.csv" )
+
+```
+
+#### Plotting the time series data
+```{r }
+
+# make sure date is a data object
+pd$date <- as.Date( pd$date )
+
+# plot
+ggplot( pd, aes( x = date, 
+                 y = downloads, 
+                 group = city, 
+                 color = city ) ) +
+  geom_line() +
+  scale_color_discrete( name = "City" ) +
+  labs( title = "Downloads by City Over Time",
+       x = " ",
+       y = " " ) +
+  theme_minimal() +
+  theme( axis.text.x = element_text( angle = 45, hjust = 1 ),
+         panel.grid = element_blank())
+
+```
+Denver is the city being treated and it does seem to have a steeper slope starting at around 7/12 (treatment started on 7/14). This could be a sign of the treatment effect. 
+
+#### Using DiD to estimate the treatment effect in Denver
+```{r }
+
+lm( downloads ~ treated * post, data = pd )
+
+```
+The treatment effect based on this preliminary DiD analysis is 5.38. However, we have not accounted for any fundamental differences in downloads between cities yet, so we can not be too confident that the true effect size is 5.38.
+
+#### Estimating the treatment effect in Denver with CausalImpact
+```{r }
+
+# create response and date variables
+response <- filter( pd, city == "Denver" )$downloads
+dates <- filter( pd, city == "Denver" )$date
+
+# create a zoo series 
+data <- zoo( response, dates )
+
+# define the pre and post periods
+pre <- as.Date( c( "2021-07-01", "2021-07-14" ) )
+post <- as.Date( c( "2021-07-15", "2021-8-01" ) )
+
+# fit the model
+impact <- CausalImpact( data, pre, post )
+
+# summarize and plot the "impact" variable
+summary( impact )
+plot( impact )
+
+```
+The predicted treatment effect based on this initial analysis using the CausalImpact package is about 8, which is higher than the predicted DiD treatment effect. However, like our DiD analysis this shows that there is a statistically significant treatment effect, but this does not account for any part of the treatment effect being city specific. We simply compared Denver to itself, so we can't be too confident in this estimate either. It is just not telling the whole story.
+
+#### Estimating treatment effect in Denver with CausalImpact using downloads from the control cities as covariate time series
+```{r }
+
+# reshape to wide format using pivot_wider from tidyr
+pd_wide <- pd |>
+  pivot_wider( id_cols = date,
+               names_from = city,
+               values_from = c( downloads ) ) 
+
+# format data to be a multivariate time series object with the zoo function
+cov_data <- zoo( select( pd_wide, -date ), pd_wide$date )
+
+# fit model
+impact <- CausalImpact( cov_data, pre, post )
+
+
+# summarize and plot the "impact" variable
+summary(impact)
+plot(impact)
+
+```
+When running the model with a covariate time series, the effect size dropped to 4.47. When comparing the plots of this model to the plots of the previous model, the estimated confidence interval follows the trajectory of the actual downloads closer. The treatment effect is still significant, but it is not as large as the previous models said it was. 
+
+#### Fit a GeoLift model
+```{r }
+
+geo_data <- GeoDataRead( data = pd, 
+                         date_id = "date",
+                         location_id = "city",
+                         Y_id = "downloads",
+                         X = c(),
+                         format = "yyyy-mm-dd",
+                         summary = TRUE )
+
+gl_model <- GeoLift ( Y_id = "Y",
+                      locations = "Denver",
+                      treatment_start_time = 15,
+                      treatment_end_time = 32,
+                      data = geo_data,
+                      alpha = 0.05,
+                      stat_test = "Positive")
+gl_model
+
+```
+The results of the GeoLift model differ pretty significantly from the CausalImpact model actually. According to the Geolift model, the ATT is 5.06. I don't have any reason to, but I was expecting the models to come up with numbers that were off by hundredths, not tenths. I don't know why this ATT is so different, but it is within the 95% confidence interval for the CausalImpact model so I don't think it is too alarming.
+
+#### Plot the GeoLift model
+```{r }
+
+plot( gl_model, type = "ATT" )
+
+```
+The confidence interval of this plot has a wider range than the pointwise CausalImpact graph. However, other than that it looks pretty similar.
+
+#### Results for FitLife’s single city offline marketing intervention.
+
+Based on the evidence above, everything indicates that the 360 multi-channel offline marketing campaign did have an effect on customer downloads of the FitLife product. Using both the GeoLift and the CausalImpact packages we were able to create a synthetic control based on three other control cities, and show that Denver (the receipient of the marketing campaign) did have a statisically significant amount of additional downloads. These two packages show that the true effect size was about 4.5 ~ 5 more downloads per day. This is a bit lower than the DiD estimate I ran earlier, but not too different that I am alarmed in any way. The synthetic control models just show that Denver is different from the other cities, and that the true effect size is a little smaller than it looked previously. Not good news for the company, but useful when considering how to invest in a marketing campaign going forward.

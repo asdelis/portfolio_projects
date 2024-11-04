@@ -1,0 +1,15 @@
+FitLife 360 Case
+
+Following the successful billboard geo-experiment in the South, the FitLife management team is now interested in testing multiple offline marketing channels at once, in addition to billboards: radio and TV ads, bus wraps, and newspaper ads. However, the billboard experiment involved 9 test cities and was, consequently, very expensive, with—in retrospect at least—an unattractive risk-reward ratio. What if the billboard advertising hadn’t worked? That spending would have been wasted.
+
+Management wants Felix Frankfurter, the data analyst who designed and analyzed the previous geo-experiment, to come up with a cheaper approach that will test a 360 multi-channel offline marketing campaign but with better risk-reward. The mandate coming from Erica Cantor, FitLife’s Marketing Director, was clear: “one city.”
+
+This leaves Felix scratching his head. Classical econometrics techniques for estimating a treatment effect with panel data, like difference-in-differences (DiD), typically require a treatment group composed of multiple units. Felix is aware that DiD could be done with just one treated unit—the 360 city, say—but the validity of the approach relies heavily on finding a suitable control. That will be hard to find since the treated city is likely to be unique in a variety of ways. The DiD parallel trends assumption in this case would be that the control cities closely match the pre-treatment trend of the treated city, which would have continued to follow a similar trend in the absence of the treatment. If this assumption is violated, the estimates will be biased.
+
+Felix does some research and happens upon a presentation by Kay Broderson from Google:
+
+https://www.youtube.com/watch?v=GTgZfCltMm8&t=6s
+
+Interesting!
+
+Felix opts to use the synthetic control method for this 360 test, with Denver as the test city. This approach offers a clever way of estimating the counterfactual by constructing a synthetic time series for the control to match the pre-treatment trend of the treated unit exactly. He especially likes the availability of relatively new packages like CausalImpact—introduced and demoed by Broderson in the video—as well as GeoLift from Meta. These will make the synthetic control analysis straightforward and produce fantastic time series uplift plots for communicating results.
